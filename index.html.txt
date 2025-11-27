@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agendamento - Studio [Nome do Studio]</title>
+  <style>
+    /* Estilos CSS */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #fbf5e6;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      color: #4b2a1a;
+    }
+
+    .container {
+      background: #fff7e9;
+      width: 100%;
+      max-width: 420px;
+      padding: 25px;
+      border-radius: 16px;
+      border: 2px solid #d9a869;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+      color: #c57a2a;
+      font-weight: 900;
+      font-size: 1.8em;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #4b2a1a;
+      font-size: 1.05em;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      border: 1px solid #c59b6c;
+      font-size: 16px;
+      background: #fff;
+      color: #4b2a1a;
+      transition: border-color 0.3s;
+    }
+    
+    input:focus, select:focus {
+        border-color: #c57a2a;
+        outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #c57a2a;
+      color: #fff;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s, transform 0.1s;
+    }
+
+    button:hover {
+      background: #a86421;
+    }
+    
+    button:active {
+        transform: scale(0.99);
+    }
+
+    .instagram {
+      text-align: center;
+      margin-top: 15px;
+      color: #4b2a1a;
+    }
+
+    .instagram a {
+      color: #c57a2a;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .logo {
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      margin-top: 25px;
+    }
+
+    .logo img {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 2px solid #d9a869;
+    }
+
+    .error {
+        border: 2px solid #e74c3c !important;
+    }
+    
+    .error::placeholder {
+        color: #e74c3c;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>✨ Agendar Horário</h1>
+
+    <label for="nome">Nome completo</label>
+    <input id="nome" type="text" placeholder="Seu nome completo" />
+
+    <label for="telefone">Telefone (WhatsApp)</label>
+    <input id="telefone" type="tel" placeholder="Ex: 595982123456" />
+
+    <label for="servico">Serviço</label>
+    <select id="servico">
+      <option value="Maquillaje día a día">Maquillaje día a día</option>
+      <option value="Maquillaje para fiestas">Maquillaje para fiestas</option>
+      <option value="Diseño de cejas">Diseño de cejas</option>
+      <option value="Diseños de cejas con henna">Diseños de cejas com henna</option>
+      <option value="Diseños de cejas com tinte">Diseños de cejas com tinte</option>
+      <option value="Extensiones de pestañas">Extensiones de pestañas</option>
+      <option value="Lavado + secado de cabello">Lavado + secado de cabello</option>
+      <option value="Lavado + secado + planchado">Lavado + secado + planchado</option>
+    </select>
+
+    <label for="data">Data</label>
+    <input id="data" type="date" />
+
+    <label for="hora">Horário (15:00h às 22:00h)</label>
+    <input id="hora" type="time" min="15:00" max="22:00" step="1800" />
+    
+    <label for="observacoes">Observações (Opcional)</label>
+    <input id="observacoes" type="text" placeholder="Detalhes ou preferência de profissional" />
+
+    <button onclick="enviarWhatsApp()">Confirmar Agendamento e Abrir WhatsApp</button>
+
+    <div class="instagram">
+      <p>Confira nossos trabalhos:</p>
+      <a href="https://www.instagram.com/ddlstudio" target="_blank">@ddlstudio</a>
+    </div>
+  </div>
+
+  <div class="logo">
+    <img src="logo.jpg" alt="Logo Studio de Beleza" />
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        // Define a data mínima para agendamento (hoje)
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById("data").setAttribute('min', hoje);
+    });
+
+    function enviarWhatsApp() {
+      // 1. Coletar dados
+      const nome = document.getElementById("nome").value.trim();
+      const telefone = document.getElementById("telefone").value.trim();
+      const servico = document.getElementById("servico").value;
+      const data = document.getElementById("data").value;
+      const horario = document.getElementById("hora").value;
+      const observacoes = document.getElementById("observacoes").value.trim();
+      
+      // SUBSTITUA PELO NÚMERO DA SUA NAMORADA (DDI + NÚMERO, SEM SINAIS)
+      const numeroDestino = "595982644359"; 
+
+      // 2. Validação aprimorada
+      let isValido = true;
+      const elementos = { 
+          nome: document.getElementById("nome"), 
+          telefone: document.getElementById("telefone"), 
+          data: document.getElementById("data"), 
+          hora: document.getElementById("hora") 
+      };
+
+      // Limpar classes de erro
+      Object.values(elementos).forEach(el => el.classList.remove('error'));
+
+      // Verificar campos obrigatórios
+      const camposObrigatorios = { nome, telefone, data, horario };
+      for (const key in camposObrigatorios) {
+        if (!camposObrigatorios[key]) {
+          elementos[key].classList.add('error');
+          isValido = false;
+        }
+      }
+
+      // Validação de formato de Telefone (apenas números)
+      if (telefone && !/^\d+$/.test(telefone)) {
+          elementos.telefone.classList.add('error');
+          alert("❗ Por favor, insira o telefone apenas com números (Ex: 595982123456).");
+          return;
+      }
+      
+      if (!isValido) {
+        alert("❗ Preencha todos os campos obrigatórios antes de enviar.");
+        return;
+      }
+      
+      // Validação de horário de funcionamento (15h às 22h)
+      const [horas, minutos] = horario.split(':').map(Number);
+      if (horas < 15 || horas > 22 || (horas === 22 && minutos > 0) || horario === "22:00") {
+          document.getElementById("hora").classList.add('error');
+          alert("❗ O horário de agendamento deve ser entre 15:00h e 22:00h (último horário aceito é 21:30h).");
+          return;
+      }
+
+      // 3. Montar a Mensagem (CÓDIGO CORRIGIDO PARA USAR \n EM VEZ DE %0A)
+      // O caractere '\n' é a quebra de linha em JavaScript. O encodeURIComponent()
+      // irá convertê-lo para %0A, o que deve ser interpretado corretamente pelo WhatsApp.
+      let texto = `*NOVO AGENDAMENTO - STUDIO*\n\n`;
+      texto += `*Cliente:* ${nome}\n`;
+      texto += `*Telefone:* ${telefone}\n`;
+      texto += `*Serviço:* ${servico}\n`;
+      texto += `*Data:* ${data.split('-').reverse().join('/')}\n`; 
+      texto += `*Horário:* ${horario}`;
+
+      if (observacoes) {
+        texto += `\n\n*Observação:* ${observacoes}`; 
+      }
+      // Fim da Montagem da Mensagem
+
+      // 4. Abrir o WhatsApp
+      const link = `https://wa.me/${numeroDestino}?text=${encodeURIComponent(texto)}`;
+      
+      alert(`✅ Seu agendamento de ${servico} para ${data.split('-').reverse().join('/')} às ${horario} será enviado para confirmação via WhatsApp!`);
+      
+      window.open(link, '_blank');
+    }
+  </script>
+
+</body>
+</html>
