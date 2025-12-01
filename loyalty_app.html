@@ -2,12 +2,12 @@
   APLICATIVO DE FIDELIDADE E REFERÊNCIA DO STUDIO (VERSÃO PWA)
   
   Este é um aplicativo web completo, responsivo e em um único arquivo HTML.
+  O arquivo principal foi renomeado para "aplicativo_de_fidelidade.html".
+  
   Utiliza:
   - Tailwind CSS para estilo e responsividade.
   - Firebase Auth para autenticação inicial (anônima, conforme o ambiente Canvas exige).
   - Firebase Firestore para armazenamento persistente dos dados de fidelidade dos clientes.
-
-  O aplicativo permite buscar um cliente pelo telefone, registrar o status de fidelidade e visualizar o progresso.
 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -23,12 +23,14 @@
     </style>
 
     <!-- PWA Setup: Novos itens para transformar em App -->
+    <!-- Manifest.json e Service-Worker.js são cruciais para a instalação na tela inicial. -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4f46e5">
     <script>
         // Registro do Service Worker para funcionalidades PWA (offline, ícone, etc.)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // A URL deve ser o nome exato do arquivo service worker no raiz do repositório
                 navigator.serviceWorker.register('/service-worker.js')
                     .then(registration => {
                         console.log('Service Worker registrado com sucesso:', registration.scope);
