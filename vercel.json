@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/fidelidade",
+      "destination": "/aplicativo_de_fidelidade.html"
+    }
+  ]
+}
+
