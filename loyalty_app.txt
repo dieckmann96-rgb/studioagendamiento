@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Loyalty App</title>
+    <!-- Carregamento do Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter para um visual moderno -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Container Principal -->
+    <div id="app-container" class="w-full max-w-sm bg-white shadow-xl rounded-2xl p-6 md:p-8 border border-gray-200">
+        
+        <h1 class="text-3xl font-extrabold text-center text-indigo-700 mb-6">
+            Studio Loyalty
+        </h1>
+        
+        <!-- Loading State -->
+        <div id="loading" class="text-center p-6 text-gray-500">
+            <svg class="animate-spin h-6 w-6 text-indigo-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Carregando sistema...
+        </div>
+
+        <!-- Search/Register State -->
+        <div id="search-view" class="hidden">
+            <p class="text-sm text-gray-600 mb-4 text-center">Digite o telefone do cliente para buscar ou cadastrar.</p>
+            
+            <label for="client-phone" class="block text-sm font-medium text-gray-700 mb-2">Telefone do Cliente (Apenas números)</label>
+            <input type="tel" id="client-phone" placeholder="Ex: 595982123456" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-4 shadow-sm">
+            
+            <button id="search-button" onclick="handleSearch()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-150 shadow-md">
+                Buscar Cliente
+            </button>
+            <div id="search-error" class="text-red-500 text-sm mt-3 hidden"></div>
+        </div>
+
+        <!-- Dashboard State -->
+        <div id="dashboard-view" class="hidden">
+            <button onclick="changeView('search')" class="text-indigo-600 hover:text-indigo-800 text-sm mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.064 1.06L9.5 10l3.226 3.71a.75.75 0 11-1.127.98l-3.5-4a.75.75 0 010-.98l3.5-4a.75.75 0 011.064-.064z" clip-rule="evenodd" /></svg>
+                Nova Busca
+            </button>
+            
+            <div class="bg-indigo-50 p-4 rounded-xl mb-6 shadow-sm">
+                <h2 class="text-xl font-bold text-indigo-700 mb-1" id="client-name-display"></h2>
+                <p class="text-sm text-gray-600" id="client-phone-display"></p>
+                <div id="client-id-display" class="text-xs text-gray-400 mt-1"></div>
+            </div>
+
+            <!-- Loyalty Program Status -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                    <span class="bg-yellow-200 text-yellow-800 rounded-full p-1 mr-2">🌟</span>
+                    Programa de Fidelidade
+                </h3>
+                <div class="border border-yellow-300 p-4 rounded-lg bg-yellow-50">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Próxima Recompensa: **Massagem Capilar Express** (a cada 5 serviços)</p>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                        <div id="loyalty-progress-bar" class="bg-yellow-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p class="text-center text-sm font-bold text-yellow-700" id="loyalty-status-text">0 de 5 Carimbos</p>
+                </div>
+            </div>
+
+            <!-- Referral Program Status -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3 flex items-center">
+                    <span class="bg-green-200 text-green-800 rounded-full p-1 mr-2">🤝</span>
+                    Programa de Referência
+                </h3>
+                <div class="border border-green-300 p-4 rounded-lg bg-green-50">
+                    <p class="text-sm text-gray-700">
+                        Indicou **<span id="referral-count" class="font-bold text-green-700">0</span>** novos clientes.
+                    </p>
+                    <p id="referred-by-text" class="text-xs italic mt-2 text-gray-600 hidden">
+                        Indicado por: <span id="referrer-name"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Ações da Equipe (Opcional - Simulação de Atualização) -->
+            <div class="pt-4 border-t mt-4 border-gray-100">
+                <h3 class="text-md font-semibold text-gray-700 mb-3">Ações da Equipe</h3>
+                <button onclick="addLoyaltyPoint()" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 rounded-lg transition duration-150 shadow-md">
+                    +1 Carimbo de Fidelidade
+                </button>
+                <p class="text-sm text-gray-500 mt-2">Clique apenas após a conclusão de um serviço pago.</p>
+                <div id="action-message" class="mt-3 text-sm font-semibold text-center hidden"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc, increment, runTransaction, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Adiciona logging do Firestore (útil para debugging)
+        setLogLevel('Debug');
+
+        // Variáveis Globais do App
+        let db;
+        let auth;
+        let currentUserId = null;
+        let currentClientData = null;
+        let currentClientDocRef = null;
+        
+        // Configurações do App (MANDATÓRIO usar variáveis globais do ambiente)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Caminho da coleção pública (compartilhada entre todos os funcionários)
+        const CLIENTS_COLLECTION_PATH = `artifacts/${appId}/public/data/studio_clients`;
+        
+        // Funções do DOM para controle de view
+        const getEl = (id) => document.getElementById(id);
+
+        window.changeView = function(viewId) {
+            getEl('loading').classList.add('hidden');
+            getEl('search-view').classList.add('hidden');
+            getEl('dashboard-view').classList.add('hidden');
+
+            if (viewId === 'search') {
+                getEl('search-view').classList.remove('hidden');
+            } else if (viewId === 'dashboard') {
+                getEl('dashboard-view').classList.remove('hidden');
+            }
+        }
+        
+        // Função de Inicialização do Firebase e Autenticação
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        // Inicia o app na tela de busca após autenticação
+                        changeView('search');
+                        console.log("Firebase e autenticação prontos. User ID:", currentUserId);
+                    } else {
+                        console.error("Erro na autenticação Firebase.");
+                        getEl('loading').textContent = "Erro ao carregar o sistema.";
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro fatal ao inicializar Firebase:", error);
+                getEl('loading').textContent = "Erro de inicialização. Verifique o console.";
+            }
+        }
+
+        // --- Funções de Lógica do App ---
+        
+        /**
+         * Realiza a busca do cliente pelo telefone ou inicia o cadastro.
+         */
+        window.handleSearch = async function() {
+            const phone = getEl('client-phone').value.trim();
+            const searchButton = getEl('search-button');
+            const searchError = getEl('search-error');
+            
+            searchError.classList.add('hidden');
+            searchButton.disabled = true;
+            searchButton.textContent = 'Buscando...';
+
+            if (!phone || !/^\d{8,}$/.test(phone)) {
+                searchError.textContent = '❗ Por favor, insira um número de telefone válido (somente números).';
+                searchError.classList.remove('hidden');
+                searchButton.disabled = false;
+                searchButton.textContent = 'Buscar Cliente';
+                return;
+            }
+            
+            try {
+                // 1. Tenta buscar o cliente pelo telefone (que é o Doc ID)
+                currentClientDocRef = doc(db, CLIENTS_COLLECTION_PATH, phone);
+                const clientDoc = await getDoc(currentClientDocRef);
+
+                if (clientDoc.exists()) {
+                    // Cliente Encontrado
+                    currentClientData = clientDoc.data();
+                    console.log("Cliente encontrado:", currentClientData);
+                    displayDashboard(currentClientData, phone);
+                } else {
+                    // Cliente Não Encontrado - Inicia o Cadastro
+                    const newName = prompt("Cliente não encontrado. Digite o nome completo para cadastrar:");
+                    if (newName) {
+                        await registerNewClient(phone, newName);
+                    } else {
+                        searchError.textContent = 'Cadastro cancelado.';
+                        searchError.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error("Erro ao buscar cliente:", error);
+                searchError.textContent = 'Erro ao buscar dados. Tente novamente.';
+                searchError.classList.remove('hidden');
+            } finally {
+                searchButton.disabled = false;
+                searchButton.textContent = 'Buscar Cliente';
+            }
+        }
+
+        /**
+         * Registra um novo cliente no banco de dados.
+         */
+        async function registerNewClient(phone, name) {
+            const initialData = {
+                name: name.trim(),
+                phone: phone,
+                loyaltyPoints: 0,
+                referredBy: null, // Pode ser preenchido se for uma indicação
+                referralCount: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            currentClientDocRef = doc(db, CLIENTS_COLLECTION_PATH, phone);
+
+            // Pergunta se o cliente foi indicado por alguém
+            const referrerPhone = prompt(`O(a) cliente ${name} foi indicado(a) por alguém? Se sim, digite o telefone (somente números) do indicador. Caso contrário, deixe em branco.`);
+            
+            if (referrerPhone && /^\d{8,}$/.test(referrerPhone)) {
+                 // 1. Tenta creditar o ponto de indicação ao indicador (se existir)
+                 const referrerRef = doc(db, CLIENTS_COLLECTION_PATH, referrerPhone);
+                 const referrerDoc = await getDoc(referrerRef);
+
+                 if (referrerDoc.exists()) {
+                    initialData.referredBy = referrerPhone;
+                    
+                    // Transaction para garantir que o contador do indicador seja atualizado
+                    await runTransaction(db, async (transaction) => {
+                        transaction.update(referrerRef, { referralCount: increment(1) });
+                    });
+                    
+                    alert(`✅ Indicação registrada! +1 Indicação para o(a) indicador(a) ${referrerDoc.data().name}.`);
+                 } else {
+                    alert(`⚠️ Telefone do indicador não encontrado. Cliente será cadastrado sem indicação.`);
+                 }
+            }
+
+            // 2. Cria o novo documento do cliente
+            await setDoc(currentClientDocRef, initialData);
+            currentClientData = initialData;
+            console.log("Novo cliente cadastrado:", initialData);
+            displayDashboard(initialData, phone);
+        }
+
+        /**
+         * Atualiza os pontos de fidelidade do cliente atual.
+         * (Esta função é para ser usada pela equipe após o serviço).
+         */
+        window.addLoyaltyPoint = async function() {
+            if (!currentClientDocRef) return;
+            
+            const actionMessage = getEl('action-message');
+            actionMessage.classList.add('hidden');
+            
+            try {
+                // Usa runTransaction para garantir atomicidade no incremento
+                await runTransaction(db, async (transaction) => {
+                    const docSnapshot = await transaction.get(currentClientDocRef);
+                    if (!docSnapshot.exists()) {
+                        throw "Documento não existe!";
+                    }
+
+                    const newPoints = (docSnapshot.data().loyaltyPoints || 0) + 1;
+                    const finalPoints = newPoints % 5; // Reseta após 5
+                    
+                    transaction.update(currentClientDocRef, { 
+                        loyaltyPoints: finalPoints,
+                        totalServices: increment(1)
+                    });
+                    
+                    // Lógica da recompensa (Se o ponto anterior era 4, e agora é 0, a recompensa foi ganha)
+                    if (newPoints % 5 === 0) {
+                        actionMessage.textContent = '🎉 RECOMPENSA RESGATADA! Cliente ganhou uma Massagem Capilar Express!';
+                        actionMessage.classList.remove('hidden');
+                    } else {
+                        actionMessage.textContent = `✅ +1 Carimbo adicionado! Total: ${finalPoints}/5.`;
+                        actionMessage.classList.remove('hidden');
+                    }
+                    
+                    // Atualiza os dados no front-end
+                    currentClientData.loyaltyPoints = finalPoints;
+                    currentClientData.totalServices = (currentClientData.totalServices || 0) + 1;
+
+                    // Re-renderiza o dashboard com os novos dados
+                    displayDashboard(currentClientData, currentClientData.phone);
+                });
+                
+            } catch (error) {
+                console.error("Erro ao adicionar ponto:", error);
+                actionMessage.textContent = '❌ Erro ao salvar o ponto. Tente novamente.';
+                actionMessage.classList.remove('hidden');
+            }
+        }
+        
+        /**
+         * Renderiza a visualização do dashboard do cliente.
+         */
+        function displayDashboard(data, phone) {
+            // 1. Informações Básicas
+            getEl('client-name-display').textContent = data.name;
+            getEl('client-phone-display').textContent = `Telefone: ${phone}`;
+            getEl('client-id-display').textContent = `ID do Usuário Logado (Staff): ${currentUserId}`; // Mostra ID do staff
+
+            // 2. Programa de Fidelidade (Pontos)
+            const points = data.loyaltyPoints || 0;
+            const progress = (points / 5) * 100;
+            
+            getEl('loyalty-progress-bar').style.width = `${progress}%`;
+            getEl('loyalty-status-text').textContent = `${points} de 5 Carimbos`;
+
+            // 3. Programa de Referência (Indicações)
+            const referralCount = data.referralCount || 0;
+            getEl('referral-count').textContent = referralCount;
+
+            // 4. Indicações (Quem indicou ele)
+            const referredByText = getEl('referred-by-text');
+            referredByText.classList.add('hidden');
+
+            if (data.referredBy) {
+                referredByText.classList.remove('hidden');
+                // Em um ambiente real, você faria uma busca aqui para pegar o nome
+                getEl('referrer-name').textContent = data.referredBy; 
+            }
+            
+            changeView('dashboard');
+        }
+
+
+        // Inicia a aplicação
+        initializeFirebase();
+
+    </script>
+
+</body>
+</html>
+
+
