@@ -1,316 +1,436 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agendamento - Studio [Nome do Studio]</title>
-  <style>
-    /* Estilos CSS */
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #fbf5e6;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-      color: #4b2a1a;
-    }
-
-    .container {
-      background: #fff7e9;
-      width: 100%;
-      max-width: 420px;
-      padding: 25px;
-      border-radius: 16px;
-      border: 2px solid #d9a869;
-      box-shadow: 0 6px 15px rgba(0,0,0,0.15);
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 25px;
-      color: #c57a2a;
-      font-weight: 900;
-      font-size: 1.8em;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: bold;
-      color: #4b2a1a;
-      font-size: 1.05em;
-    }
-
-    input, select {
-      width: 100%;
-      padding: 12px;
-      margin-bottom: 20px;
-      border-radius: 10px;
-      border: 1px solid #c59b6c;
-      font-size: 16px;
-      background: #fff;
-      color: #4b2a1a;
-      transition: border-color 0.3s;
-    }
-    
-    input:focus, select:focus {
-        border-color: #c57a2a;
-        outline: none;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      background: #c57a2a;
-      color: #fff;
-      font-size: 18px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background 0.3s, transform 0.1s;
-    }
-
-    button:hover {
-      background: #a86421;
-    }
-    
-    button:active {
-        transform: scale(0.99);
-    }
-
-    .instagram {
-      text-align: center;
-      margin-top: 15px;
-      color: #4b2a1a;
-    }
-
-    .instagram a {
-      color: #c57a2a;
-      text-decoration: none;
-      font-weight: bold;
-    }
-
-    .logo {
-      width: 100%;
-      max-width: 420px;
-      text-align: center;
-      margin-top: 25px;
-    }
-
-    .logo img {
-      width: 100%;
-      height: auto;
-      border-radius: 12px;
-      border: 2px solid #d9a869;
-    }
-
-    .error {
-        border: 2px solid #e74c3c !important;
-    }
-    
-    .error::placeholder {
-        color: #e74c3c;
-    }
-
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dulce de Leche Studio - Agendamento e Administração</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Inter Font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .bg-studio { background-color: #F8F4E3; }
+        .text-brown-custom { color: #8B4513; }
+        .btn-custom { background-color: #D2B48C; color: #5C4033; transition: all 0.2s; }
+        .btn-custom:hover { background-color: #A0522D; color: #FFFFFF; }
+        /* Custom scrollbar for Admin Panel */
+        .overflow-y-scroll::-webkit-scrollbar { width: 8px; }
+        .overflow-y-scroll::-webkit-scrollbar-thumb { background: #D2B48C; border-radius: 4px; }
+        .overflow-y-scroll::-webkit-scrollbar-track { background: #F8F4E3; }
+    </style>
 </head>
-<body>
+<body class="bg-studio min-h-screen">
 
-  <div class="container">
-    <h1>✨ Agendar Horário</h1>
+    <!-- Firebase Imports and Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, where, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    <label for="nome">Nome completo</label>
-    <input id="nome" type="text" placeholder="Seu nome completo" />
+        // Set log level to debug for troubleshooting
+        setLogLevel('Debug');
 
-    <label for="telefone">Telefone (WhatsApp)</label>
-    <input id="telefone" type="tel" placeholder="Ex: 595982123456" />
+        // Global Firebase variables (will be populated on init)
+        let db;
+        let auth;
+        let userId;
+        let isAuthReady = false;
 
-    <label for="servico">Serviço</label>
-    <select id="servico">
-      <option value="Maquillaje día a día">Maquillaje día a día</option>
-      <option value="Maquillaje para fiestas">Maquillaje para fiestas</option>
-      <option value="Diseño de cejas">Diseño de cejas</option>
-      <option value="Diseños de cejas con henna">Diseños de cejas com henna</option>
-      <option value="Diseños de cejas com tinte">Diseños de cejas com tinte</option>
-      <option value="Extensiones de pestañas">Extensiones de pestañas</option>
-      <option value="Lavado + secado de cabello">Lavado + secado de cabello</option>
-      <option value="Lavado + secado + planchado">Lavado + secado + planchado</option>
-    </select>
+        // Constants from Vercel Environment Variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    <label for="data">Data</label>
-    <input id="data" type="date" />
+        // Initialize Firebase
+        const initFirebase = async () => {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    // This happens if variables are not set correctly in Vercel
+                    console.error("ERRO FATAL: A configuração do Firebase não foi carregada corretamente. Verifique as variáveis de ambiente do Vercel.");
+                    document.getElementById('app-container').innerHTML = `
+                        <div class="p-6 bg-red-100 text-red-700 rounded-lg shadow-lg">
+                            <p class="font-bold">Erro de Configuração!</p>
+                            <p>O aplicativo não conseguiu carregar as configurações do Firebase. Por favor, verifique se as 7 variáveis de ambiente do Vercel estão corretas.</p>
+                        </div>
+                    `;
+                    return;
+                }
 
-    <label for="hora" id="label-hora">Horário (Selecione a data)</label>
-    <input id="hora" type="time" step="1800" />
-    
-    <label for="observacoes">Observações (Opcional)</label>
-    <input id="observacoes" type="text" placeholder="Detalhes ou preferência de profissional" />
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
 
-    <button onclick="enviarWhatsApp()">Confirmar Agendamento e Abrir WhatsApp</button>
+                // Authentication using custom token (preferred) or anonymously (fallback)
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
 
-    <div class="instagram">
-      <p>Confira nossos trabalhos:</p>
-      <a href="https://www.instagram.com/ddlstudio" target="_blank">@ddlstudio</a>
-    </div>
-  </div>
+                // Get current user ID
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                isAuthReady = true;
 
-  <div class="logo">
-    <img src="logo.jpg" alt="Logo Studio de Beleza" />
-  </div>
+                // Start the main application logic
+                setupApp();
 
-  <script>
-    // Função para atualizar os limites de horário com base no dia da semana
-    function atualizarHorario() {
-        const dataInput = document.getElementById("data");
-        const horaInput = document.getElementById("hora");
-        const labelHora = document.getElementById("label-hora");
-        const selectedDateValue = dataInput.value;
+            } catch (error) {
+                console.error("Erro ao inicializar o Firebase ou autenticar:", error);
+                document.getElementById('app-container').innerHTML = `
+                    <div class="p-6 bg-red-100 text-red-700 rounded-lg shadow-lg">
+                        <p class="font-bold">Erro de Autenticação/Inicialização!</p>
+                        <p>Detalhes: ${error.message}</p>
+                    </div>
+                `;
+            }
+        };
 
-        // Limpa os limites se nenhuma data for selecionada
-        if (!selectedDateValue) {
-            horaInput.removeAttribute('min');
-            horaInput.removeAttribute('max');
-            horaInput.value = ''; // Limpa o valor para evitar agendamento fora do range
-            labelHora.textContent = "Horário (Selecione a data para ver a disponibilidade)";
-            return;
-        }
+        // --- GLOBAL APP STATE AND LOGIC ---
+        let currentView = 'schedule'; // 'schedule' or 'admin'
+        let adminLoggedIn = false;
+        let appointments = [];
+        let totalRevenue = 0;
 
-        // Cria o objeto Date para obter o dia da semana
-        // O 'T00:00:00' é usado para evitar problemas de fuso horário que mudariam o dia.
-        const selectedDate = new Date(selectedDateValue + 'T00:00:00'); 
-        const diaDaSemana = selectedDate.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+        const ADMIN_SECRET_KEY = "ADMIN_SECRET_KEY_HERE"; // This will be replaced by the environment variable during build
 
-        let minTime, maxTime, labelText;
+        // Services and Prices (Editable via code or Firestore later)
+        const services = [
+            { id: 'extensao', name: 'Extensão de Cílios', price: 150 },
+            { id: 'limpeza', name: 'Limpeza de Pele', price: 120 },
+            { id: 'massagem', name: 'Massagem Relaxante', price: 100 },
+        ];
 
-        if (diaDaSemana >= 1 && diaDaSemana <= 5) { 
-            // Segunda (1) a Sexta (5): 15:00h às 20:00h
-            minTime = '15:00';
-            maxTime = '20:00';
-            labelText = `Horário (15:00h às 20:00h)`;
-        } else { 
-            // Sábado (6) e Domingo (0): 09:00h às 20:00h
-            minTime = '09:00';
-            maxTime = '20:00';
-            labelText = `Horário (09:00h às 20:00h)`;
-        }
+        // Utility to find price
+        const getServicePrice = (serviceId) => {
+            const service = services.find(s => s.id === serviceId);
+            return service ? service.price : 0;
+        };
 
-        // Aplica os novos limites de horário e o novo texto da label
-        horaInput.setAttribute('min', minTime);
-        horaInput.setAttribute('max', maxTime);
-        labelHora.textContent = labelText;
-        
-        // Se o valor atual estiver fora do novo limite, limpa o campo
-        if (horaInput.value && (horaInput.value < minTime || horaInput.value > maxTime)) {
-            horaInput.value = '';
-        }
-    }
+        // --- FIREBASE INTERACTION ---
 
+        // Function to get the public collection path for appointments
+        const getAppointmentsCollectionRef = () => {
+            return collection(db, `artifacts/${appId}/public/data/appointments`);
+        };
 
-    document.addEventListener('DOMContentLoaded', (event) => {
-        // Define a data mínima para agendamento (hoje)
-        const hoje = new Date().toISOString().split('T')[0];
-        const dataInput = document.getElementById("data");
-        dataInput.setAttribute('min', hoje);
+        // Real-time listener for appointments
+        const subscribeToAppointments = () => {
+            if (!isAuthReady || !db) return;
 
-        // 1. Adiciona o listener para atualizar o horário sempre que a data mudar
-        dataInput.addEventListener('change', atualizarHorario);
-        
-        // 2. Chama a função inicialmente para definir os valores padrão
-        atualizarHorario(); 
-    });
+            const appointmentsRef = getAppointmentsCollectionRef();
+            const q = query(appointmentsRef);
 
-    function enviarWhatsApp() {
-      // 1. Coletar dados
-      const nome = document.getElementById("nome").value.trim();
-      const telefone = document.getElementById("telefone").value.trim();
-      const servico = document.getElementById("servico").value;
-      const data = document.getElementById("data").value;
-      const horario = document.getElementById("hora").value;
-      const observacoes = document.getElementById("observacoes").value.trim();
-      
-      // SUBSTITUA PELO NÚMERO DA SUA NAMORADA (DDI + NÚMERO, SEM SINAIS)
-      const numeroDestino = "595982644359"; 
+            onSnapshot(q, (snapshot) => {
+                appointments = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    // Ensure date is a string or Date object for sorting
+                    date: doc.data().date ? doc.data().date.toDate().toISOString().split('T')[0] : 'N/A'
+                }));
+                // Sort by date (oldest first) and then timestamp
+                appointments.sort((a, b) => {
+                    if (a.date < b.date) return -1;
+                    if (a.date > b.date) return 1;
+                    return (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0);
+                });
 
-      // 2. Validação aprimorada
-      let isValido = true;
-      const elementos = { 
-          nome: document.getElementById("nome"), 
-          telefone: document.getElementById("telefone"), 
-          data: document.getElementById("data"), 
-          hora: document.getElementById("hora") 
-      };
+                // Calculate total revenue
+                totalRevenue = appointments.reduce((sum, appt) => sum + getServicePrice(appt.serviceId), 0);
 
-      // Limpar classes de erro
-      Object.values(elementos).forEach(el => el.classList.remove('error'));
+                // Re-render UI based on the current view
+                renderUI();
+                if (currentView === 'admin') renderAdminPanel();
+            }, (error) => {
+                console.error("Erro ao receber dados de agendamentos:", error);
+            });
+        };
 
-      // Verificar campos obrigatórios
-      const camposObrigatorios = { nome, telefone, data, horario };
-      for (const key in camposObrigatorios) {
-        if (!camposObrigatorios[key]) {
-          elementos[key].classList.add('error');
-          isValido = false;
-        }
-      }
+        // Function to handle appointment submission
+        window.submitAppointment = async () => {
+            const name = document.getElementById('name').value;
+            const phone = document.getElementById('phone').value;
+            const serviceId = document.getElementById('service').value;
+            const date = document.getElementById('date').value;
+            const time = document.getElementById('time').value;
+            const observations = document.getElementById('observations').value;
 
-      // Validação de formato de Telefone (apenas números)
-      if (telefone && !/^\d+$/.test(telefone)) {
-          elementos.telefone.classList.add('error');
-          alert("❗ Por favor, insira o telefone apenas com números (Ex: 595982123456).");
-          return;
-      }
-      
-      if (!isValido) {
-        alert("❗ Preencha todos os campos obrigatórios antes de enviar.");
-        return;
-      }
-      
-      // Validação de horário de funcionamento (DINÂMICO)
-      const [horas, minutos] = horario.split(':').map(Number);
-      
-      // Recalcula o horário válido com base na data (para validar com a lógica da função atualizarHorario)
-      const selectedDate = new Date(data + 'T00:00:00'); 
-      const diaDaSemana = selectedDate.getDay(); 
+            if (!name || !phone || !serviceId || !date || !time) {
+                showMessage("Por favor, preencha todos os campos obrigatórios.", 'error');
+                return;
+            }
 
-      let minH, maxH;
-      if (diaDaSemana >= 1 && diaDaSemana <= 5) { // Segunda a Sexta (15:00 a 20:00)
-          minH = 15;
-          maxH = 20;
-      } else { // Sábado e Domingo (09:00 a 20:00)
-          minH = 9;
-          maxH = 20;
-      }
-      
-      // Checa se o horário está fora do range
-      if (horas < minH || horas > maxH || (horas === maxH && minutos > 0)) {
-          document.getElementById("hora").classList.add('error');
-          alert(`❗ O horário de agendamento para esta data deve ser entre ${minH}:00h e ${maxH}:00h.`);
-          return;
-      }
+            try {
+                // Combine date and time to create a Date object for Firestore
+                const appointmentDateTime = new Date(`${date}T${time}:00`);
 
-      // 3. Montar a Mensagem
-      let texto = `*NOVO AGENDAMENTO - STUDIO*\n\n`;
-      texto += `*Cliente:* ${nome}\n`;
-      texto += `*Telefone:* ${telefone}\n`;
-      texto += `*Serviço:* ${servico}\n`;
-      texto += `*Data:* ${data.split('-').reverse().join('/')}\n`; 
-      texto += `*Horário:* ${horario}`;
+                // Prevent early appointment dates (optional)
+                if (appointmentDateTime < new Date()) {
+                    showMessage("A data/hora do agendamento não pode ser no passado.", 'error');
+                    return;
+                }
 
-      if (observacoes) {
-        texto += `\n\n*Observação:* ${observacoes}`; 
-      }
+                const appointmentData = {
+                    name,
+                    phone,
+                    serviceId,
+                    date: appointmentDateTime, // Save as Firestore Timestamp
+                    time,
+                    observations,
+                    serviceName: services.find(s => s.id === serviceId)?.name || 'Desconhecido',
+                    price: getServicePrice(serviceId),
+                    status: 'Pending', // New field for admin tracking
+                    timestamp: serverTimestamp(),
+                };
 
-      // 4. Abrir o WhatsApp
-      const link = `https://wa.me/${numeroDestino}?text=${encodeURIComponent(texto)}`;
-      
-      alert(`✅ Seu agendamento de ${servico} para ${data.split('-').reverse().join('/')} às ${horario} será enviado para confirmação via WhatsApp!`);
-      
-      window.open(link, '_blank');
-    }
-  </script>
+                await addDoc(getAppointmentsCollectionRef(), appointmentData);
 
+                showMessage("Agendamento confirmado! Entraremos em contato para finalizar os detalhes.", 'success');
+                // Clear form after success
+                document.getElementById('schedule-form').reset();
+
+                // Generate WhatsApp link (optional for user convenience)
+                const whatsappMessage = encodeURIComponent(`Olá, ${name}! Confirmei meu agendamento para ${appointmentData.serviceName} em ${date} às ${time}. Observações: ${observations || 'Nenhuma'}.`);
+                const whatsappLink = `https://wa.me/5599999999999?text=${whatsappMessage}`; // Replace with your studio WhatsApp number
+                window.open(whatsappLink, '_blank');
+
+            } catch (error) {
+                console.error("Erro ao adicionar agendamento:", error);
+                showMessage("Erro ao processar agendamento. Tente novamente.", 'error');
+            }
+        };
+
+        // --- UI Rendering and Navigation ---
+
+        const showMessage = (message, type = 'info') => {
+            const msgBox = document.getElementById('message-box');
+            msgBox.textContent = message;
+            msgBox.className = `p-4 mt-4 rounded-lg text-white font-semibold shadow-md ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'}`;
+            msgBox.style.display = 'block';
+            setTimeout(() => {
+                msgBox.style.display = 'none';
+            }, 5000);
+        };
+
+        // Function to switch views
+        window.setView = (view) => {
+            currentView = view;
+            renderUI();
+        };
+
+        // Main UI Renderer
+        const renderUI = () => {
+            const container = document.getElementById('app-container');
+            if (currentView === 'schedule') {
+                container.innerHTML = renderScheduler();
+                populateServiceOptions();
+            } else if (currentView === 'admin') {
+                if (!adminLoggedIn) {
+                    container.innerHTML = renderAdminLogin();
+                } else {
+                    container.innerHTML = renderAdminPanel();
+                }
+            }
+        };
+
+        // Populate service options in the form
+        const populateServiceOptions = () => {
+            const serviceSelect = document.getElementById('service');
+            if (serviceSelect) {
+                serviceSelect.innerHTML = `<option value="" disabled selected>Selecione um Serviço</option>`;
+                services.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service.id;
+                    option.textContent = `${service.name} (R$ ${service.price.toFixed(2).replace('.', ',')})`;
+                    serviceSelect.appendChild(option);
+                });
+            }
+        };
+
+        // --- VIEW RENDERERS ---
+
+        const renderScheduler = () => `
+            <div class="max-w-md mx-auto p-6 bg-white rounded-xl shadow-2xl mt-10 border border-brown-custom/30">
+                <h2 class="text-3xl font-bold text-center text-brown-custom mb-6 border-b pb-2">Agendar Horário</h2>
+                <form id="schedule-form" onsubmit="event.preventDefault(); submitAppointment();">
+                    <div class="mb-4">
+                        <label for="name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
+                        <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div class="mb-4">
+                        <label for="phone" class="block text-sm font-medium text-gray-700">Telefone (WhatsApp)</label>
+                        <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: (99) 99999-9999">
+                    </div>
+                    <div class="mb-4">
+                        <label for="service" class="block text-sm font-medium text-gray-700">Serviço</label>
+                        <select id="service" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="date" class="block text-sm font-medium text-gray-700">Data</label>
+                        <input type="date" id="date" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div class="mb-6">
+                        <label for="time" class="block text-sm font-medium text-gray-700">Horário</label>
+                        <input type="time" id="time" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
+                    </div>
+                    <div class="mb-6">
+                        <label for="observations" class="block text-sm font-medium text-gray-700">Observações (Opcional)</label>
+                        <textarea id="observations" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500"></textarea>
+                    </div>
+
+                    <div id="message-box" style="display:none;" class="mb-4"></div>
+
+                    <button type="submit" class="w-full btn-custom py-2 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105">
+                        Confirmar Agendamento e Abrir WhatsApp
+                    </button>
+                </form>
+            </div>
+        `;
+
+        window.adminLogin = () => {
+            const password = document.getElementById('admin-password').value;
+            // The actual secret key is stored in the ADMIN_SECRET_KEY environment variable.
+            // For security, you should implement a proper serverless function or Firebase Auth for production.
+            // Here, we compare the local input with the environment variable passed during the build.
+            const environmentSecret = `__ADMIN_SECRET_KEY__`; // Placeholder replaced by Vercel during build
+
+            if (password === environmentSecret) {
+                adminLoggedIn = true;
+                renderUI();
+                subscribeToAppointments(); // Start listening for data only after login
+            } else {
+                showMessage("Senha de administrador incorreta.", 'error');
+            }
+        };
+
+        const renderAdminLogin = () => `
+            <div class="max-w-sm mx-auto p-6 bg-white rounded-xl shadow-2xl mt-20 border border-brown-custom/30">
+                <h2 class="text-2xl font-bold text-center text-brown-custom mb-6">Acesso Administrativo</h2>
+                <input type="password" id="admin-password" placeholder="Digite a Chave Secreta" class="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
+                <div id="message-box" style="display:none;" class="mt-4"></div>
+                <button onclick="adminLogin()" class="w-full btn-custom py-2 mt-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105">
+                    Login
+                </button>
+            </div>
+        `;
+
+        window.adminLogout = () => {
+            adminLoggedIn = false;
+            appointments = [];
+            totalRevenue = 0;
+            renderUI();
+            showMessage("Sessão encerrada.", 'info');
+        };
+
+        const renderAdminPanel = () => {
+            const formattedRevenue = `R$ ${totalRevenue.toFixed(2).replace('.', ',')}`;
+            const totalAppointments = appointments.length;
+
+            return `
+                <div class="p-4 md:p-8 max-w-6xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-brown-custom">Painel de Administração</h2>
+                        <button onclick="adminLogout()" class="btn-custom py-1 px-4 rounded-lg font-bold shadow-md hover:bg-red-700 hover:text-white">
+                            <i class="fas fa-sign-out-alt"></i> Sair
+                        </button>
+                    </div>
+
+                    <!-- Revenue and Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-xl border-l-4 border-green-600">
+                            <p class="text-sm font-semibold text-gray-500 uppercase">Faturamento Total (R$)</p>
+                            <p class="text-4xl font-extrabold text-green-700 mt-1">${formattedRevenue}</p>
+                            <p class="text-xs text-gray-400 mt-2">Soma dos preços de todos os agendamentos registrados.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-xl border-l-4 border-amber-600">
+                            <p class="text-sm font-semibold text-gray-500 uppercase">Total de Agendamentos</p>
+                            <p class="text-4xl font-extrabold text-amber-700 mt-1">${totalAppointments}</p>
+                            <p class="text-xs text-gray-400 mt-2">Agendamentos pendentes, confirmados e concluídos.</p>
+                        </div>
+                    </div>
+                    
+                    <div id="message-box" style="display:none;" class="mb-4"></div>
+
+                    <!-- Appointments List -->
+                    <div class="bg-white rounded-xl shadow-2xl overflow-hidden border border-brown-custom/30">
+                        <div class="p-4 bg-brown-custom text-white font-bold text-lg">Agendamentos Recentes</div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serviço</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor (R$)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observações</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${appointments.length > 0 ? appointments.map(appt => `
+                                        <tr class="hover:bg-amber-50">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                                                ${new Date(appt.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}<br>
+                                                <span class="text-xs text-gray-500">${appt.time}</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                ${appt.name}<br>
+                                                <a href="https://wa.me/55${appt.phone.replace(/\D/g, '')}" target="_blank" class="text-green-600 hover:text-green-800 text-xs flex items-center">
+                                                    <i class="fab fa-whatsapp mr-1"></i> ${appt.phone}
+                                                </a>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${appt.serviceName}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">R$ ${appt.price.toFixed(2).replace('.', ',')}</td>
+                                            <td class="px-6 py-4 whitespace-normal text-sm text-gray-500 max-w-xs">${appt.observations || 'N/A'}</td>
+                                        </tr>
+                                    `).join('') : `
+                                        <tr>
+                                            <td colspan="5" class="px-6 py-10 text-center text-gray-500">Nenhum agendamento encontrado no Firebase.</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- INITIALIZATION ---
+        // Wait for the window to load before running Firebase init
+        window.onload = () => {
+            initFirebase();
+            subscribeToAppointments(); // Start subscription right away, it will check if auth is ready internally
+        };
+    </script>
+
+    <!-- Navigation Menu (Header) -->
+    <header class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-extrabold text-brown-custom">Dulce de Leche Studio</h1>
+            <nav class="flex space-x-4">
+                <button onclick="setView('schedule')" class="text-brown-custom hover:text-amber-700 font-medium py-1 px-3 rounded-md transition duration-150">
+                    <i class="far fa-calendar-alt mr-1"></i> Agendar
+                </button>
+                <button onclick="setView('admin')" class="text-brown-custom hover:text-amber-700 font-medium py-1 px-3 rounded-md transition duration-150">
+                    <i class="fas fa-chart-line mr-1"></i> Admin
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Application Container -->
+    <main id="app-container" class="pb-10">
+        <!-- Content will be injected here by JavaScript -->
+        <div class="max-w-md mx-auto p-6 text-center mt-20 text-brown-custom">
+            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+            <p>Carregando aplicação...</p>
+        </div>
+    </main>
 </body>
 </html>
+
+
