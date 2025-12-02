@@ -1,447 +1,467 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dulce de Leche Studio - Agendamento e Administração</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Dulce de Leche Studio - Agendamento</title>
+    <!-- Carrega o Tailwind CSS para estilização moderna e responsiva -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <!-- Inter Font -->
+    <!-- Define a fonte e alguns estilos base -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .bg-studio { background-color: #F8F4E3; }
-        .text-brown-custom { color: #8B4513; }
-        .btn-custom { background-color: #D2B48C; color: #5C4033; transition: all 0.2s; }
-        .btn-custom:hover { background-color: #A0522D; color: #FFFFFF; }
-        /* Custom scrollbar for Admin Panel */
-        .overflow-y-scroll::-webkit-scrollbar { width: 8px; }
-        .overflow-y-scroll::-webkit-scrollbar-thumb { background: #D2B48C; border-radius: 4px; }
-        .overflow-y-scroll::-webkit-scrollbar-track { background: #F8F4E3; }
+        :root {
+            --color-primary: #8B4513; /* Marrom escuro (terracota/sépia) */
+            --color-secondary: #FFDAB9; /* Pêssego (claro, background) */
+            --color-accent: #DAA520; /* Dourado (botões) */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-secondary);
+            min-height: 100vh;
+        }
+        /* Estilos personalizados para o botão de confirmação */
+        .btn-confirm {
+            background-color: var(--color-accent);
+            color: var(--color-primary);
+            transition: background-color 0.3s;
+        }
+        .btn-confirm:hover {
+            background-color: #C5931D;
+        }
     </style>
 </head>
-<body class="bg-studio min-h-screen">
+<body class="p-4 sm:p-8 flex flex-col items-center">
 
-    <!-- Firebase Imports and Setup -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Set log level to debug for troubleshooting
-        setLogLevel('Debug');
-
-        // Global Firebase variables (will be populated on init)
-        let db;
-        let auth;
-        let userId;
-        let isAuthReady = false;
-
-        // Constants from Vercel Environment Variables (these are replaced during build)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Initialize Firebase and Authentication
-        const initFirebase = async () => {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("ERRO FATAL: A configuração do Firebase não foi carregada corretamente.");
-                    document.getElementById('app-container').innerHTML = `
-                        <div class="max-w-md mx-auto p-6 bg-red-100 text-red-700 rounded-lg shadow-lg mt-20">
-                            <p class="font-bold">Erro de Configuração!</p>
-                            <p>O aplicativo não conseguiu carregar as configurações do Firebase. Por favor, verifique se as 7 variáveis de ambiente do Vercel estão corretas.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Authentication using custom token (preferred) or anonymously (fallback)
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                // Get current user ID
-                userId = auth.currentUser?.uid || crypto.randomUUID();
-                isAuthReady = true;
-
-                // --- Ponto de Início Corrigido ---
-                // Depois de autenticado, renderiza a UI e inicia o listener de dados.
-                renderUI();
-                subscribeToAppointments(); 
-
-            } catch (error) {
-                console.error("Erro ao inicializar o Firebase ou autenticar:", error);
-                document.getElementById('app-container').innerHTML = `
-                    <div class="max-w-md mx-auto p-6 bg-red-100 text-red-700 rounded-lg shadow-lg mt-20">
-                        <p class="font-bold">Erro de Autenticação/Inicialização!</p>
-                        <p>Detalhes: ${error.message}</p>
-                    </div>
-                `;
-            }
-        };
-
-        // --- GLOBAL APP STATE AND LOGIC ---
-        let currentView = 'schedule'; // 'schedule' or 'admin'
-        let adminLoggedIn = false;
-        let appointments = [];
-        let totalRevenue = 0;
-
-        // Note: This must be replaced by the Vercel build process with the actual secret.
-        const ADMIN_SECRET_KEY = "__ADMIN_SECRET_KEY__";
-
-        // Services and Prices in PYG (Guarani)
-        const services = [
-            // Valores ajustados para Guarani (Gs 150.000, Gs 120.000, Gs 100.000)
-            { id: 'extensao', name: 'Extensão de Cílios', price: 150000 },
-            { id: 'limpeza', name: 'Limpeza de Pele', price: 120000 },
-            { id: 'massagem', name: 'Massagem Relaxante', price: 100000 },
-        ];
-
-        // Utility to find price
-        const getServicePrice = (serviceId) => {
-            const service = services.find(s => s.id === serviceId);
-            return service ? service.price : 0;
-        };
-
-        // Utility to format currency to Paraguayan Guarani (Gs)
-        const formatCurrency = (value) => {
-            // Usa o local 'es-PY' para separador de milhar com ponto (Gs 150.000) e sem decimais.
-            return 'Gs ' + value.toLocaleString('es-PY', { minimumFractionDigits: 0 });
-        };
-
-
-        // --- FIREBASE INTERACTION ---
-
-        // Function to get the public collection path for appointments
-        const getAppointmentsCollectionRef = () => {
-            return collection(db, `artifacts/${appId}/public/data/appointments`);
-        };
-
-        // Real-time listener for appointments
-        const subscribeToAppointments = () => {
-            // Garante que o DB está pronto antes de tentar conectar
-            if (!isAuthReady || !db) return;
-
-            const appointmentsRef = getAppointmentsCollectionRef();
-            const q = query(appointmentsRef);
-
-            onSnapshot(q, (snapshot) => {
-                appointments = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    // Ensure date is a string or Date object for sorting
-                    // Convert Firestore Timestamp to JS Date object
-                    date: doc.data().date ? doc.data().date.toDate().toISOString().split('T')[0] : 'N/A'
-                }));
-                // Sort by date (oldest first) and then timestamp
-                appointments.sort((a, b) => {
-                    if (a.date < b.date) return -1;
-                    if (a.date > b.date) return 1;
-                    return (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0);
-                });
-
-                // Calculate total revenue
-                totalRevenue = appointments.reduce((sum, appt) => sum + getServicePrice(appt.serviceId), 0);
-
-                // Re-render UI based on the current view
-                renderUI();
-                if (currentView === 'admin') renderAdminPanel();
-            }, (error) => {
-                console.error("Erro ao receber dados de agendamentos:", error);
-            });
-        };
-
-        // Function to handle appointment submission
-        window.submitAppointment = async () => {
-            const name = document.getElementById('name').value;
-            const phone = document.getElementById('phone').value;
-            const serviceId = document.getElementById('service').value;
-            const date = document.getElementById('date').value;
-            const time = document.getElementById('time').value;
-            const observations = document.getElementById('observations').value;
-
-            if (!name || !phone || !serviceId || !date || !time) {
-                showMessage("Por favor, preencha todos os campos obrigatórios.", 'error');
-                return;
-            }
-
-            try {
-                // Combine date and time to create a Date object for Firestore
-                const appointmentDateTime = new Date(`${date}T${time}:00`);
-
-                // Prevent early appointment dates (optional)
-                if (appointmentDateTime < new Date()) {
-                    showMessage("A data/hora do agendamento não pode ser no passado.", 'error');
-                    return;
-                }
-
-                const appointmentData = {
-                    name,
-                    phone,
-                    serviceId,
-                    date: appointmentDateTime, // Save as Firestore Timestamp
-                    time,
-                    observations,
-                    serviceName: services.find(s => s.id === serviceId)?.name || 'Desconhecido',
-                    price: getServicePrice(serviceId),
-                    status: 'Pending', // New field for admin tracking
-                    timestamp: serverTimestamp(),
-                };
-
-                await addDoc(getAppointmentsCollectionRef(), appointmentData);
-
-                showMessage("Agendamento confirmado! Entraremos em contato para finalizar os detalhes.", 'success');
-                // Clear form after success
-                document.getElementById('schedule-form').reset();
-
-                // Generate WhatsApp link (optional for user convenience)
-                const whatsappMessage = encodeURIComponent(`Olá, ${name}! Confirmei meu agendamento para ${appointmentData.serviceName} em ${date} às ${time}. Observações: ${observations || 'Nenhuma'}.`);
-                const whatsappLink = `https://wa.me/595999999999?text=${whatsappMessage}`; // Substitua pelo seu número (595 é o código do Paraguai)
-                window.open(whatsappLink, '_blank');
-
-            } catch (error) {
-                console.error("Erro ao adicionar agendamento:", error);
-                showMessage("Erro ao processar agendamento. Tente novamente.", 'error');
-            }
-        };
-
-        // --- UI Rendering and Navigation ---
-
-        const showMessage = (message, type = 'info') => {
-            const msgBox = document.getElementById('message-box');
-            msgBox.textContent = message;
-            msgBox.className = `p-4 mt-4 rounded-lg text-white font-semibold shadow-md ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'}`;
-            msgBox.style.display = 'block';
-            setTimeout(() => {
-                msgBox.style.display = 'none';
-            }, 5000);
-        };
-
-        // Function to switch views
-        window.setView = (view) => {
-            currentView = view;
-            renderUI();
-        };
-
-        // Main UI Renderer
-        const renderUI = () => {
-            const container = document.getElementById('app-container');
-            if (currentView === 'schedule') {
-                container.innerHTML = renderScheduler();
-                populateServiceOptions();
-            } else if (currentView === 'admin') {
-                if (!adminLoggedIn) {
-                    container.innerHTML = renderAdminLogin();
-                } else {
-                    container.innerHTML = renderAdminPanel();
-                }
-            }
-        };
-
-        // Populate service options in the form
-        const populateServiceOptions = () => {
-            const serviceSelect = document.getElementById('service');
-            if (serviceSelect) {
-                serviceSelect.innerHTML = `<option value="" disabled selected>Selecione um Serviço</option>`;
-                services.forEach(service => {
-                    const option = document.createElement('option');
-                    option.value = service.id;
-                    option.textContent = `${service.name} (${formatCurrency(service.price)})`; // Usando Gs
-                    serviceSelect.appendChild(option);
-                });
-            }
-        };
-
-        // --- VIEW RENDERERS ---
-
-        const renderScheduler = () => `
-            <div class="max-w-md mx-auto p-6 bg-white rounded-xl shadow-2xl mt-10 border border-brown-custom/30">
-                <h2 class="text-3xl font-bold text-center text-brown-custom mb-6 border-b pb-2">Agendar Horário</h2>
-                <form id="schedule-form" onsubmit="event.preventDefault(); submitAppointment();">
-                    <div class="mb-4">
-                        <label for="name" class="block text-sm font-medium text-gray-700">Nome Completo</label>
-                        <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-                    </div>
-                    <div class="mb-4">
-                        <label for="phone" class="block text-sm font-medium text-gray-700">Telefone (WhatsApp)</label>
-                        <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: 999 999999">
-                    </div>
-                    <div class="mb-4">
-                        <label for="service" class="block text-sm font-medium text-gray-700">Serviço</label>
-                        <select id="service" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-                            <!-- Options populated by JS -->
-                        </select>
-                    </div>
-                    <div class="mb-4">
-                        <label for="date" class="block text-sm font-medium text-gray-700">Data</label>
-                        <input type="date" id="date" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-                    </div>
-                    <div class="mb-6">
-                        <label for="time" class="block text-sm font-medium text-gray-700">Horário</label>
-                        <input type="time" id="time" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-                    </div>
-                    <div class="mb-6">
-                        <label for="observations" class="block text-sm font-medium text-gray-700">Observações (Opcional)</label>
-                        <textarea id="observations" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500"></textarea>
-                    </div>
-
-                    <div id="message-box" style="display:none;" class="mb-4"></div>
-
-                    <button type="submit" class="w-full btn-custom py-2 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105">
-                        Confirmar Agendamento e Abrir WhatsApp
-                    </button>
-                </form>
-            </div>
-        `;
-
-        window.adminLogin = () => {
-            const password = document.getElementById('admin-password').value;
-            // The actual secret key is stored in the ADMIN_SECRET_KEY environment variable.
-            const environmentSecret = ADMIN_SECRET_KEY; 
-
-            if (password === environmentSecret) {
-                adminLoggedIn = true;
-                renderUI();
-                // A subscrição é feita na inicialização, mas garantimos o re-render
-                // se o painel admin for a tela atual.
-                subscribeToAppointments(); 
-            } else {
-                showMessage("Senha de administrador incorreta.", 'error');
-            }
-        };
-
-        const renderAdminLogin = () => `
-            <div class="max-w-sm mx-auto p-6 bg-white rounded-xl shadow-2xl mt-20 border border-brown-custom/30">
-                <h2 class="text-2xl font-bold text-center text-brown-custom mb-6">Acesso Administrativo</h2>
-                <input type="password" id="admin-password" placeholder="Digite a Chave Secreta" class="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500">
-                <div id="message-box" style="display:none;" class="mt-4"></div>
-                <button onclick="adminLogin()" class="w-full btn-custom py-2 mt-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105">
-                    Login
-                </button>
-            </div>
-        `;
-
-        window.adminLogout = () => {
-            adminLoggedIn = false;
-            appointments = [];
-            totalRevenue = 0;
-            renderUI();
-            showMessage("Sessão encerrada.", 'info');
-        };
-
-        const renderAdminPanel = () => {
-            const formattedRevenue = formatCurrency(totalRevenue); // Usando Gs
-            const totalAppointments = appointments.length;
-
-            return `
-                <div class="p-4 md:p-8 max-w-6xl mx-auto">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-3xl font-bold text-brown-custom">Painel de Administração</h2>
-                        <button onclick="adminLogout()" class="btn-custom py-1 px-4 rounded-lg font-bold shadow-md hover:bg-red-700 hover:text-white">
-                            <i class="fas fa-sign-out-alt"></i> Sair
-                        </button>
-                    </div>
-
-                    <!-- Revenue and Summary Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div class="bg-white p-6 rounded-xl shadow-xl border-l-4 border-green-600">
-                            <p class="text-sm font-semibold text-gray-500 uppercase">Faturamento Total (Gs)</p>
-                            <p class="text-4xl font-extrabold text-green-700 mt-1">${formattedRevenue}</p>
-                            <p class="text-xs text-gray-400 mt-2">Soma dos preços de todos os agendamentos registrados.</p>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-xl border-l-4 border-amber-600">
-                            <p class="text-sm font-semibold text-gray-500 uppercase">Total de Agendamentos</p>
-                            <p class="text-4xl font-extrabold text-amber-700 mt-1">${totalAppointments}</p>
-                            <p class="text-xs text-gray-400 mt-2">Agendamentos pendentes, confirmados e concluídos.</p>
-                        </div>
-                    </div>
-                    
-                    <div id="message-box" style="display:none;" class="mb-4"></div>
-
-                    <!-- Appointments List -->
-                    <div class="bg-white rounded-xl shadow-2xl overflow-hidden border border-brown-custom/30">
-                        <div class="p-4 bg-brown-custom text-white font-bold text-lg">Agendamentos Recentes</div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serviço</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor (Gs)</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observações</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    ${appointments.length > 0 ? appointments.map(appt => `
-                                        <tr class="hover:bg-amber-50">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                                                ${new Date(appt.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}<br>
-                                                <span class="text-xs text-gray-500">${appt.time}</span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                ${appt.name}<br>
-                                                <a href="https://wa.me/595${appt.phone.replace(/\D/g, '')}" target="_blank" class="text-green-600 hover:text-green-800 text-xs flex items-center">
-                                                    <i class="fab fa-whatsapp mr-1"></i> ${appt.phone}
-                                                </a>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${appt.serviceName}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">${formatCurrency(appt.price)}</td>
-                                            <td class="px-6 py-4 whitespace-normal text-sm text-gray-500 max-w-xs">${appt.observations || 'N/A'}</td>
-                                        </tr>
-                                    `).join('') : `
-                                        <tr>
-                                            <td colspan="5" class="px-6 py-10 text-center text-gray-500">Nenhum agendamento encontrado no Firebase.</td>
-                                        </tr>
-                                    `}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-        };
-
-        // --- INITIALIZATION ---
-        // Espera a janela carregar e chama o initFirebase.
-        window.onload = () => {
-            initFirebase();
-            // A chamada para subscribeToAppointments e renderUI agora está DENTRO de initFirebase para garantir a ordem correta.
-        };
-    </script>
-
-    <!-- Navigation Menu (Header) -->
-    <header class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-extrabold text-brown-custom">Dulce de Leche Studio</h1>
-            <nav class="flex space-x-4">
-                <button onclick="setView('schedule')" class="text-brown-custom hover:text-amber-700 font-medium py-1 px-3 rounded-md transition duration-150">
-                    <i class="far fa-calendar-alt mr-1"></i> Agendar
-                </button>
-                <button onclick="setView('admin')" class="text-brown-custom hover:text-amber-700 font-medium py-1 px-3 rounded-md transition duration-150">
-                    <i class="fas fa-chart-line mr-1"></i> Admin
-                </button>
-            </nav>
+    <!-- Cabeçalho Principal -->
+    <header class="w-full max-w-lg mb-8">
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-primary mb-2" style="color:var(--color-primary);">Dulce de Leche Studio</h1>
+        <div id="nav-container" class="flex justify-center space-x-4">
+            <button id="btn-agendar" class="text-lg font-semibold text-gray-800 hover:text-gray-900 border-b-2 border-transparent">Agendar</button>
+            <button id="btn-admin" class="text-lg font-semibold text-gray-800 hover:text-gray-900 border-b-2 border-transparent">Admin</button>
         </div>
     </header>
 
-    <!-- Main Application Container -->
-    <main id="app-container" class="pb-10">
-        <!-- Content will be injected here by JavaScript -->
-        <div class="max-w-md mx-auto p-6 text-center mt-20 text-brown-custom">
-            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
-            <p>Carregando aplicação...</p>
+    <!-- Container Principal do Conteúdo -->
+    <main id="app-container" class="w-full max-w-lg bg-white p-6 sm:p-8 rounded-xl shadow-2xl border-t-8 border-r-4 border-accent" style="border-color:var(--color-accent);">
+        
+        <!-- Área de Mensagens de Erro/Sucesso (Inicialmente oculta) -->
+        <div id="message-area" class="mb-4 hidden p-3 rounded-lg text-center font-medium"></div>
+
+        <!-- Conteúdo dinâmico será injetado aqui -->
+        <div id="content-container">
+            <!-- Conteúdo de agendamento padrão -->
         </div>
+        
     </main>
+
+    <!-- MODAL (Usado para Confirmação e Mensagens) -->
+    <div id="app-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 justify-center items-center p-4">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm">
+            <h2 id="modal-title" class="text-xl font-bold mb-4 text-center text-primary" style="color:var(--color-primary);"></h2>
+            <p id="modal-content" class="mb-6 text-gray-700 text-center"></p>
+            <div id="modal-actions" class="flex justify-center space-x-4">
+                <button id="modal-close" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Configuração e Lógica JavaScript -->
+    <script type="module">
+        // #############################################################################################
+        // 1. CONFIGURAÇÃO DE VARIÁVEIS DO AMBIENTE (FIREBASE)
+        // O Vercel irá substituir estas variáveis (placeholders) durante o processo de Build
+        // #############################################################################################
+
+        // A Vercel injetará a string JSON do Firebase Config aqui.
+        const firebaseConfigString = '__FIREBASE_CONFIG__';
+        // A Vercel injetará a Chave Secreta do Admin aqui.
+        const adminSecret = '__ADMIN_SECRET__';
+
+        let firebaseConfig, db, auth, userId, appId;
+
+        // Tenta parsear a string de configuração do Firebase. Se falhar, é o Erro de Configuração.
+        try {
+            firebaseConfig = JSON.parse(firebaseConfigString);
+        } catch (error) {
+            console.error("Erro ao parsear FIREBASE_CONFIG:", error);
+            document.getElementById('content-container').innerHTML = `
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <strong class="font-bold">Erro de Configuração! (CÓDIGO 1)</strong>
+                    <span class="block sm:inline">O aplicativo não conseguiu carregar as configurações do Firebase. Por favor, verifique se o **Comando de Build** no Vercel foi configurado corretamente e se as variáveis de ambiente foram salvas.</span>
+                </div>
+            `;
+            // Aborta a execução do script se a configuração for inválida.
+            throw new Error("Configuração Firebase inválida. Verifique o Vercel.");
+        }
+        
+        // Esta função é CRÍTICA. É a correção para o erro 'Can't find variable: setupApp'
+        // Ela só é executada se a configuração do Firebase for válida.
+        async function setupApp() {
+            // #############################################################################################
+            // 2. IMPORTS E INICIALIZAÇÃO DO FIREBASE
+            // #############################################################################################
+            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+            const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+            
+            // #############################################################################################
+            // 3. INICIALIZAÇÃO DE SERVIÇOS
+            // #############################################################################################
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // O ID da Aplicação é o projectId do Firebase, usado no caminho do Firestore.
+            appId = firebaseConfig.projectId;
+            
+            // Variável global para rastrear o estado da autenticação
+            let isAuthReady = false;
+
+            // Define o caminho base para a coleção pública de agendamentos
+            const getAppointmentsCollectionPath = (uid) => `artifacts/${appId}/public/data/appointments`;
+            
+            // #############################################################################################
+            // 4. FUNÇÕES DE UTILIDADE E UI
+            // #############################################################################################
+
+            // Função para mostrar o modal
+            function showModal(title, content, actionsHtml = '', canClose = true) {
+                document.getElementById('modal-title').textContent = title;
+                document.getElementById('modal-content').innerHTML = content;
+                const actionsContainer = document.getElementById('modal-actions');
+                actionsContainer.innerHTML = actionsHtml;
+                
+                if (canClose) {
+                    const closeButton = document.createElement('button');
+                    closeButton.id = 'modal-close-custom';
+                    closeButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition';
+                    closeButton.textContent = 'Fechar';
+                    closeButton.onclick = () => document.getElementById('app-modal').classList.add('hidden');
+                    actionsContainer.appendChild(closeButton);
+                }
+                
+                document.getElementById('app-modal').classList.remove('hidden');
+            }
+
+            // Função para formatar a data (dd/mm/aaaa)
+            const formatDate = (date) => {
+                const d = new Date(date);
+                return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+            };
+            
+            // Função para formatar a hora (HH:mm)
+            const formatTime = (time) => time.split('T')[1].substring(0, 5);
+
+            // Função para carregar o template de Agendamento
+            function renderAgendar() {
+                document.getElementById('content-container').innerHTML = `
+                    <h2 class="text-2xl font-semibold mb-6 text-center text-primary" style="color:var(--color-primary);">Agendar Horário</h2>
+                    
+                    <form id="appointment-form" class="space-y-4">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700">Nome completo</label>
+                            <input type="text" id="name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border">
+                        </div>
+                        <div>
+                            <label for="whatsapp" class="block text-sm font-medium text-gray-700">Telefone (WhatsApp)</label>
+                            <input type="tel" id="whatsapp" required placeholder="Ex: 595981234567" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border">
+                        </div>
+                        <div>
+                            <label for="service" class="block text-sm font-medium text-gray-700">Serviço</label>
+                            <select id="service" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border">
+                                <option value="">Selecione um serviço</option>
+                                <option value="Maquiagem Social">Maquiagem Social</option>
+                                <option value="Maquiagem Noiva">Maquiagem Noiva</option>
+                                <option value="Curso de Automaquiagem">Curso de Automaquiagem</option>
+                                <option value="Extensão de Cílios">Extensão de Cílios</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="date" class="block text-sm font-medium text-gray-700">Data e Hora</label>
+                            <input type="datetime-local" id="date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border">
+                        </div>
+                        <div>
+                            <label for="notes" class="block text-sm font-medium text-gray-700">Observações (Opcional)</label>
+                            <textarea id="notes" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border" placeholder="Detalhes de preferência de profissional, alergias, etc."></textarea>
+                        </div>
+                        <button type="submit" class="w-full btn-confirm py-3 rounded-xl font-bold text-lg shadow-lg">
+                            Confirmar Agendamento e Abrir WhatsApp
+                        </button>
+                    </form>
+                `;
+                
+                // Adiciona o listener de submissão do formulário
+                document.getElementById('appointment-form').addEventListener('submit', handleNewAppointment);
+                
+                // Atualiza o estado de navegação
+                document.getElementById('btn-agendar').classList.add('border-primary');
+                document.getElementById('btn-admin').classList.remove('border-primary');
+            }
+
+            // Função para carregar o template de Administração
+            function renderAdmin(isLoggedIn = false) {
+                document.getElementById('content-container').innerHTML = `
+                    <h2 class="text-2xl font-semibold mb-6 text-center text-primary" style="color:var(--color-primary);">Acesso Administrativo</h2>
+                    <div id="admin-panel" class="space-y-4">
+                        ${isLoggedIn ? `
+                            <p class="text-green-600 font-semibold text-center">Admin logado com sucesso!</p>
+                            <div class="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
+                                <span class="text-sm font-medium">Seu ID de Usuário (Admin):</span>
+                                <span class="text-xs break-all">${auth.currentUser?.uid || 'N/A'}</span>
+                            </div>
+                            <button id="logout-btn" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition shadow-lg">Sair (Logout)</button>
+                            <h3 class="text-xl font-semibold mt-6 mb-4 text-primary" style="color:var(--color-primary);">Agendamentos Pendentes</h3>
+                            <div id="appointments-list" class="space-y-3">
+                                <p class="text-gray-500 text-center">Carregando agendamentos...</p>
+                            </div>
+                        ` : `
+                            <form id="login-form" class="space-y-4">
+                                <div>
+                                    <label for="admin-secret" class="block text-sm font-medium text-gray-700">Senha de Administrador</label>
+                                    <input type="password" id="admin-secret" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 focus:ring-accent focus:border-accent border">
+                                </div>
+                                <div id="login-error" class="text-red-500 font-medium hidden">Senha de administrador incorreta.</div>
+                                <button type="submit" class="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-secondary-dark transition shadow-lg" style="background-color:var(--color-primary);">
+                                    Login
+                                </button>
+                            </form>
+                        `}
+                    </div>
+                `;
+
+                if (isLoggedIn) {
+                    // Configura o listener em tempo real para os agendamentos
+                    setupAppointmentListener();
+                    document.getElementById('logout-btn').addEventListener('click', () => {
+                        renderAdmin(false); // Simplesmente reverte para a tela de login
+                        // No mundo real, aqui você deslogaria um usuário com e-mail/senha
+                    });
+                } else {
+                    document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+                }
+                
+                // Atualiza o estado de navegação
+                document.getElementById('btn-agendar').classList.remove('border-primary');
+                document.getElementById('btn-admin').classList.add('border-primary');
+            }
+            
+            // #############################################################################################
+            // 5. LÓGICA DE AGENDAMENTO (USUÁRIO FINAL)
+            // #############################################################################################
+
+            async function handleNewAppointment(e) {
+                e.preventDefault();
+                
+                // 1. Coleta e validação de dados
+                const name = document.getElementById('name').value.trim();
+                const whatsapp = document.getElementById('whatsapp').value.trim();
+                const service = document.getElementById('service').value;
+                const dateInput = document.getElementById('date').value;
+                const notes = document.getElementById('notes').value.trim();
+                
+                if (!name || !whatsapp || !service || !dateInput) {
+                    showModal('Erro de Validação', 'Por favor, preencha todos os campos obrigatórios.');
+                    return;
+                }
+                
+                const appointmentTime = new Date(dateInput);
+                if (isNaN(appointmentTime)) {
+                    showModal('Erro de Data', 'Formato de data e hora inválido.');
+                    return;
+                }
+                
+                // 2. Criação do objeto de agendamento
+                const newAppointment = {
+                    name,
+                    whatsapp,
+                    service,
+                    dateTime: appointmentTime,
+                    notes: notes || 'Nenhuma observação.',
+                    status: 'Pendente',
+                    createdAt: new Date(),
+                    // Guarda o ID do usuário anônimo (quem agendou)
+                    userId: auth.currentUser?.uid || 'anonimo-nao-autenticado', 
+                };
+
+                try {
+                    // 3. Salva no Firestore
+                    // Usa a coleção pública para agendamentos compartilhados
+                    const colRef = collection(db, getAppointmentsCollectionPath());
+                    await addDoc(colRef, newAppointment);
+                    
+                    // 4. Constrói a mensagem do WhatsApp
+                    const whatsappMessage = `Olá! Acabei de agendar um horário no Dulce de Leche Studio.
+
+*Detalhes do Agendamento:*
+*Nome:* ${name}
+*Serviço:* ${service}
+*Data:* ${formatDate(appointmentTime)}
+*Hora:* ${formatTime(dateInput)}
+*Observações:* ${newAppointment.notes}
+
+Por favor, confirme a disponibilidade!`;
+
+                    const whatsappUrl = `https://wa.me/${whatsapp}?text=${encodeURIComponent(whatsappMessage)}`;
+                    
+                    // 5. Exibe o modal de sucesso com link do WhatsApp
+                    showModal(
+                        'Agendamento Confirmado!',
+                        `<p>Seu horário para **${service}** no dia **${formatDate(appointmentTime)}** foi reservado como *Pendente*. </p><p class="mt-2 text-sm">Clique abaixo para nos enviar os detalhes por WhatsApp para confirmação final.</p>`,
+                        `<a href="${whatsappUrl}" target="_blank" class="w-full btn-confirm py-3 px-4 rounded-xl font-bold text-lg inline-block text-center shadow-lg hover:brightness-110">
+                            Abrir WhatsApp
+                        </a>`
+                    );
+
+                    document.getElementById('appointment-form').reset();
+                } catch (error) {
+                    console.error("Erro ao salvar agendamento:", error);
+                    showModal('Erro no Agendamento', `Não foi possível salvar seu agendamento. Detalhes: ${error.message}. Por favor, verifique as Regras de Segurança do Firestore.`);
+                }
+            }
+            
+            // #############################################################################################
+            // 6. LÓGICA DE ADMINISTRAÇÃO (PAINEL ADMIN)
+            // #############################################################################################
+
+            function handleLogin(e) {
+                e.preventDefault();
+                const secret = document.getElementById('admin-secret').value.trim();
+                const loginError = document.getElementById('login-error');
+
+                if (secret === adminSecret) {
+                    loginError.classList.add('hidden');
+                    renderAdmin(true); // Login Simulado (Visto que a autenticação real é complexa)
+                } else {
+                    loginError.classList.remove('hidden');
+                }
+            }
+
+            // Renderiza a lista de agendamentos
+            function updateAppointmentsList(appointments) {
+                const listContainer = document.getElementById('appointments-list');
+                if (!listContainer) return;
+                
+                if (appointments.length === 0) {
+                    listContainer.innerHTML = '<p class="text-gray-500 text-center p-4 bg-gray-50 rounded-lg">Nenhum agendamento pendente encontrado.</p>';
+                    return;
+                }
+                
+                listContainer.innerHTML = appointments.map(app => `
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-accent" style="border-color:var(--color-accent);">
+                        <p class="font-bold text-primary" style="color:var(--color-primary);">${formatDate(app.dateTime.toDate())} às ${formatTime(app.dateTime.toDate().toISOString())}</p>
+                        <p class="text-sm">Cliente: ${app.name}</p>
+                        <p class="text-sm">Serviço: <span class="font-semibold">${app.service}</span></p>
+                        <p class="text-sm">WhatsApp: ${app.whatsapp}</p>
+                        <p class="text-xs mt-2 text-gray-500">Notas: ${app.notes}</p>
+                        <span class="inline-block mt-3 px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">${app.status}</span>
+                        <div class="mt-3 flex space-x-2">
+                            <button data-id="${app.id}" data-status="Confirmado" class="update-status-btn px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600">Confirmar</button>
+                            <button data-id="${app.id}" data-status="Cancelado" class="update-status-btn px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Cancelar</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Adiciona listeners para os botões de status
+                document.querySelectorAll('.update-status-btn').forEach(button => {
+                    button.addEventListener('click', handleStatusUpdate);
+                });
+            }
+            
+            // Listener em tempo real para a lista de agendamentos no Admin
+            function setupAppointmentListener() {
+                const q = query(collection(db, getAppointmentsCollectionPath()));
+                
+                onSnapshot(q, (snapshot) => {
+                    const appointments = [];
+                    snapshot.forEach((doc) => {
+                        appointments.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // Ordena por data (o mais antigo primeiro)
+                    appointments.sort((a, b) => a.dateTime.toDate() - b.dateTime.toDate());
+                    
+                    updateAppointmentsList(appointments);
+                }, (error) => {
+                    console.error("Erro ao ouvir agendamentos em tempo real:", error);
+                    document.getElementById('appointments-list').innerHTML = `<p class="text-red-500 text-center p-4">Erro ao carregar dados: ${error.message}</p>`;
+                });
+            }
+
+            // Função para atualizar o status de um agendamento
+            async function handleStatusUpdate(e) {
+                const id = e.target.dataset.id;
+                const newStatus = e.target.dataset.status;
+                
+                if (!id || !newStatus) return;
+                
+                try {
+                    const appointmentRef = doc(db, getAppointmentsCollectionPath(), id);
+                    await setDoc(appointmentRef, { status: newStatus }, { merge: true });
+                    // O onSnapshot acima irá atualizar a lista automaticamente.
+                    showModal('Status Atualizado', `Agendamento ${id.substring(0, 4)}... foi marcado como **${newStatus}**.`);
+                } catch (error) {
+                    console.error("Erro ao atualizar status:", error);
+                    showModal('Erro de Atualização', `Não foi possível mudar o status para ${newStatus}. Detalhes: ${error.message}`);
+                }
+            }
+
+
+            // #############################################################################################
+            // 7. INICIALIZAÇÃO DA APLICAÇÃO (FLOW PRINCIPAL)
+            // #############################################################################################
+
+            // 7.1. Tratamento de Autenticação (CRÍTICO para Firestore)
+            await new Promise(resolve => {
+                onAuthStateChanged(auth, async (user) => {
+                    if (!user) {
+                        try {
+                            // Tenta logar anonimamente
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                            console.error("Falha ao autenticar anonimamente:", error);
+                            showModal('Erro de Autenticação', 'Não foi possível autenticar o usuário anônimo. Por favor, verifique a ativação do método de login "Anônimo" no Firebase Authentication.');
+                        }
+                    }
+                    userId = auth.currentUser?.uid;
+                    isAuthReady = true;
+                    resolve();
+                });
+            });
+
+            // 7.2. Configuração de Navegação e Estado
+            const contentContainer = document.getElementById('content-container');
+            const btnAgendar = document.getElementById('btn-agendar');
+            const btnAdmin = document.getElementById('btn-admin');
+            
+            // Listener para alternar para Agendar
+            btnAgendar.addEventListener('click', renderAgendar);
+            
+            // Listener para alternar para Admin
+            btnAdmin.addEventListener('click', () => renderAdmin(false)); // Sempre começa na tela de login
+            
+            // Inicia na tela de Agendamento
+            renderAgendar();
+
+            // Mensagem de sucesso na inicialização (opcional)
+            console.log("Aplicativo Dulce de Leche Studio inicializado com sucesso.");
+            console.log("Usuário autenticado (anônimo) com ID:", userId);
+
+        }
+        
+        // Chamada da função de inicialização APENAS se a config do Firebase for válida
+        if (firebaseConfigString !== '__FIREBASE_CONFIG__') {
+            setupApp();
+        } else {
+             // Esta mensagem é mostrada se o Vercel falhar na injeção.
+             document.getElementById('content-container').innerHTML = `
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <strong class="font-bold">Erro de Configuração! (CÓDIGO 1)</strong>
+                    <span class="block sm:inline">O Vercel não injetou as variáveis de ambiente. Verifique se o **Comando de Build** está correto e force o Redeploy.</span>
+                </div>
+            `;
+        }
+    </script>
 </body>
 </html>
 
