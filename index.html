@@ -28,7 +28,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, where, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Set log level to debug for troubleshooting
         setLogLevel('Debug');
@@ -39,19 +39,18 @@
         let userId;
         let isAuthReady = false;
 
-        // Constants from Vercel Environment Variables
+        // Constants from Vercel Environment Variables (these are replaced during build)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Initialize Firebase
+        // Initialize Firebase and Authentication
         const initFirebase = async () => {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
-                    // This happens if variables are not set correctly in Vercel
-                    console.error("ERRO FATAL: A configuração do Firebase não foi carregada corretamente. Verifique as variáveis de ambiente do Vercel.");
+                    console.error("ERRO FATAL: A configuração do Firebase não foi carregada corretamente.");
                     document.getElementById('app-container').innerHTML = `
-                        <div class="p-6 bg-red-100 text-red-700 rounded-lg shadow-lg">
+                        <div class="max-w-md mx-auto p-6 bg-red-100 text-red-700 rounded-lg shadow-lg mt-20">
                             <p class="font-bold">Erro de Configuração!</p>
                             <p>O aplicativo não conseguiu carregar as configurações do Firebase. Por favor, verifique se as 7 variáveis de ambiente do Vercel estão corretas.</p>
                         </div>
@@ -74,13 +73,15 @@
                 userId = auth.currentUser?.uid || crypto.randomUUID();
                 isAuthReady = true;
 
-                // Start the main application logic
-                setupApp();
+                // --- Ponto de Início Corrigido ---
+                // Depois de autenticado, renderiza a UI e inicia o listener de dados.
+                renderUI();
+                subscribeToAppointments(); 
 
             } catch (error) {
                 console.error("Erro ao inicializar o Firebase ou autenticar:", error);
                 document.getElementById('app-container').innerHTML = `
-                    <div class="p-6 bg-red-100 text-red-700 rounded-lg shadow-lg">
+                    <div class="max-w-md mx-auto p-6 bg-red-100 text-red-700 rounded-lg shadow-lg mt-20">
                         <p class="font-bold">Erro de Autenticação/Inicialização!</p>
                         <p>Detalhes: ${error.message}</p>
                     </div>
@@ -94,13 +95,15 @@
         let appointments = [];
         let totalRevenue = 0;
 
-        const ADMIN_SECRET_KEY = "ADMIN_SECRET_KEY_HERE"; // This will be replaced by the environment variable during build
+        // Note: This must be replaced by the Vercel build process with the actual secret.
+        const ADMIN_SECRET_KEY = "__ADMIN_SECRET_KEY__";
 
-        // Services and Prices (Editable via code or Firestore later)
+        // Services and Prices in PYG (Guarani)
         const services = [
-            { id: 'extensao', name: 'Extensão de Cílios', price: 150 },
-            { id: 'limpeza', name: 'Limpeza de Pele', price: 120 },
-            { id: 'massagem', name: 'Massagem Relaxante', price: 100 },
+            // Valores ajustados para Guarani (Gs 150.000, Gs 120.000, Gs 100.000)
+            { id: 'extensao', name: 'Extensão de Cílios', price: 150000 },
+            { id: 'limpeza', name: 'Limpeza de Pele', price: 120000 },
+            { id: 'massagem', name: 'Massagem Relaxante', price: 100000 },
         ];
 
         // Utility to find price
@@ -108,6 +111,13 @@
             const service = services.find(s => s.id === serviceId);
             return service ? service.price : 0;
         };
+
+        // Utility to format currency to Paraguayan Guarani (Gs)
+        const formatCurrency = (value) => {
+            // Usa o local 'es-PY' para separador de milhar com ponto (Gs 150.000) e sem decimais.
+            return 'Gs ' + value.toLocaleString('es-PY', { minimumFractionDigits: 0 });
+        };
+
 
         // --- FIREBASE INTERACTION ---
 
@@ -118,6 +128,7 @@
 
         // Real-time listener for appointments
         const subscribeToAppointments = () => {
+            // Garante que o DB está pronto antes de tentar conectar
             if (!isAuthReady || !db) return;
 
             const appointmentsRef = getAppointmentsCollectionRef();
@@ -128,6 +139,7 @@
                     id: doc.id,
                     ...doc.data(),
                     // Ensure date is a string or Date object for sorting
+                    // Convert Firestore Timestamp to JS Date object
                     date: doc.data().date ? doc.data().date.toDate().toISOString().split('T')[0] : 'N/A'
                 }));
                 // Sort by date (oldest first) and then timestamp
@@ -193,7 +205,7 @@
 
                 // Generate WhatsApp link (optional for user convenience)
                 const whatsappMessage = encodeURIComponent(`Olá, ${name}! Confirmei meu agendamento para ${appointmentData.serviceName} em ${date} às ${time}. Observações: ${observations || 'Nenhuma'}.`);
-                const whatsappLink = `https://wa.me/5599999999999?text=${whatsappMessage}`; // Replace with your studio WhatsApp number
+                const whatsappLink = `https://wa.me/595999999999?text=${whatsappMessage}`; // Substitua pelo seu número (595 é o código do Paraguai)
                 window.open(whatsappLink, '_blank');
 
             } catch (error) {
@@ -243,7 +255,7 @@
                 services.forEach(service => {
                     const option = document.createElement('option');
                     option.value = service.id;
-                    option.textContent = `${service.name} (R$ ${service.price.toFixed(2).replace('.', ',')})`;
+                    option.textContent = `${service.name} (${formatCurrency(service.price)})`; // Usando Gs
                     serviceSelect.appendChild(option);
                 });
             }
@@ -261,7 +273,7 @@
                     </div>
                     <div class="mb-4">
                         <label for="phone" class="block text-sm font-medium text-gray-700">Telefone (WhatsApp)</label>
-                        <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: (99) 99999-9999">
+                        <input type="tel" id="phone" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: 999 999999">
                     </div>
                     <div class="mb-4">
                         <label for="service" class="block text-sm font-medium text-gray-700">Serviço</label>
@@ -294,14 +306,14 @@
         window.adminLogin = () => {
             const password = document.getElementById('admin-password').value;
             // The actual secret key is stored in the ADMIN_SECRET_KEY environment variable.
-            // For security, you should implement a proper serverless function or Firebase Auth for production.
-            // Here, we compare the local input with the environment variable passed during the build.
-            const environmentSecret = `__ADMIN_SECRET_KEY__`; // Placeholder replaced by Vercel during build
+            const environmentSecret = ADMIN_SECRET_KEY; 
 
             if (password === environmentSecret) {
                 adminLoggedIn = true;
                 renderUI();
-                subscribeToAppointments(); // Start listening for data only after login
+                // A subscrição é feita na inicialização, mas garantimos o re-render
+                // se o painel admin for a tela atual.
+                subscribeToAppointments(); 
             } else {
                 showMessage("Senha de administrador incorreta.", 'error');
             }
@@ -327,7 +339,7 @@
         };
 
         const renderAdminPanel = () => {
-            const formattedRevenue = `R$ ${totalRevenue.toFixed(2).replace('.', ',')}`;
+            const formattedRevenue = formatCurrency(totalRevenue); // Usando Gs
             const totalAppointments = appointments.length;
 
             return `
@@ -342,7 +354,7 @@
                     <!-- Revenue and Summary Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div class="bg-white p-6 rounded-xl shadow-xl border-l-4 border-green-600">
-                            <p class="text-sm font-semibold text-gray-500 uppercase">Faturamento Total (R$)</p>
+                            <p class="text-sm font-semibold text-gray-500 uppercase">Faturamento Total (Gs)</p>
                             <p class="text-4xl font-extrabold text-green-700 mt-1">${formattedRevenue}</p>
                             <p class="text-xs text-gray-400 mt-2">Soma dos preços de todos os agendamentos registrados.</p>
                         </div>
@@ -365,7 +377,7 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serviço</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor (R$)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor (Gs)</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observações</th>
                                     </tr>
                                 </thead>
@@ -378,12 +390,12 @@
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 ${appt.name}<br>
-                                                <a href="https://wa.me/55${appt.phone.replace(/\D/g, '')}" target="_blank" class="text-green-600 hover:text-green-800 text-xs flex items-center">
+                                                <a href="https://wa.me/595${appt.phone.replace(/\D/g, '')}" target="_blank" class="text-green-600 hover:text-green-800 text-xs flex items-center">
                                                     <i class="fab fa-whatsapp mr-1"></i> ${appt.phone}
                                                 </a>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${appt.serviceName}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">R$ ${appt.price.toFixed(2).replace('.', ',')}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">${formatCurrency(appt.price)}</td>
                                             <td class="px-6 py-4 whitespace-normal text-sm text-gray-500 max-w-xs">${appt.observations || 'N/A'}</td>
                                         </tr>
                                     `).join('') : `
@@ -400,10 +412,10 @@
         };
 
         // --- INITIALIZATION ---
-        // Wait for the window to load before running Firebase init
+        // Espera a janela carregar e chama o initFirebase.
         window.onload = () => {
             initFirebase();
-            subscribeToAppointments(); // Start subscription right away, it will check if auth is ready internally
+            // A chamada para subscribeToAppointments e renderUI agora está DENTRO de initFirebase para garantir a ordem correta.
         };
     </script>
 
@@ -432,5 +444,4 @@
     </main>
 </body>
 </html>
-
 
