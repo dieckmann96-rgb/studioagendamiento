@@ -1,5 +1,4 @@
-{
-  "name": "dulce-de-leche-studio-agenda",
+name": "dulce-de-leche-studio-agenda",
   "version": "1.0.0",
   "description": "Script para injetar variáveis de ambiente Vercel no index.html.",
   "scripts": {
@@ -9,4 +8,3 @@
   "author": "",
   "license": "ISC"
 }
-
