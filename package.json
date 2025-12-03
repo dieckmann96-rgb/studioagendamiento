@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Script para injetar variáveis de ambiente Vercel no index.html.",
   "scripts": {
-    "build": "sed -i.bak 's|__FIREBASE_CONFIG__|'$FIREBASE_CONFIG'|g' index.html && sed -i.bak 's|__ADMIN_SECRET__|'$ADMIN_SECRET'|g' index.html",
+    "build": "node replace_vars.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
