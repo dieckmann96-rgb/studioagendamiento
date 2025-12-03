@@ -1,9 +1,5 @@
 {
-  "rewrites": [
-    {
-      "source": "/fidelidade",
-      "destination": "/aplicativo_de_fidelidade.html"
-    }
-  ]
+  "build": {
+    "command": "sed -i '' 's|__FIREBASE_CONFIG__|'$FIREBASE_CONFIG'|g' index.html && sed -i '' 's|__ADMIN_SECRET__|'$ADMIN_SECRET'|g' index.html"
+  }
 }
-
