@@ -1,0 +1,11 @@
+{
+  "name": "dulce-de-leche-studio-agenda",
+  "version": "1.0.0",
+  "description": "Configura o Vercel para rodar o script de substituição de variáveis.",
+  "scripts": {
+    "build": "node replace_vars.js"
+  },
+  "author": "Gemini AI",
+  "license": "ISC"
+}
+
