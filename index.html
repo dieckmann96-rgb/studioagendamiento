@@ -8,6 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Define a fonte e alguns estilos base -->
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         :root {
             --color-primary: #8B4513; /* Marrom escuro (terracota/sépia) */
             --color-secondary: #FFDAB9; /* Pêssego (claro, background) */
@@ -68,34 +69,53 @@
     <!-- Configuração e Lógica JavaScript -->
     <script type="module">
         // #############################################################################################
-        // 1. CONFIGURAÇÃO DE VARIÁVEIS DO AMBIENTE (FIREBASE)
-        // O Vercel irá substituir estas variáveis (placeholders) durante o processo de Build
+        // 1. VARIÁVEIS DO AMBIENTE (PLACEHOLDERS)
+        // O script 'replace_vars.js' DEVE substituir estas strings durante o deploy do Vercel.
         // #############################################################################################
 
-        // A Vercel injetará a string JSON do Firebase Config aqui.
-        const firebaseConfigString = '__FIREBASE_CONFIG__';
-        // A Vercel injetará a Chave Secreta do Admin aqui.
+        // Placeholders. O valor real do Firebase Config (em Base64) será injetado aqui.
+        const firebaseConfigBase64 = '__FIREBASE_CONFIG__';
+        // O valor da senha de administrador será injetado aqui.
         const adminSecret = '__ADMIN_SECRET__';
 
         let firebaseConfig, db, auth, userId, appId;
 
-        // Tenta parsear a string de configuração do Firebase. Se falhar, é o Erro de Configuração.
+        // Decodifica a string Base64 para JSON
+        function decodeBase64(base64) {
+            try {
+                // atob decodifica Base64 em ambientes de navegador.
+                const jsonString = atob(base64);
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Erro ao decodificar ou parsear Base64:", e);
+                return null;
+            }
+        }
+
+        // Tenta carregar e decodificar a configuração
         try {
-            firebaseConfig = JSON.parse(firebaseConfigString);
+            // Verifica se a substituição realmente ocorreu (o comprimento > 20 garante que não é apenas "CONFIG_ERROR")
+            if (firebaseConfigBase64 && firebaseConfigBase64.length > 20 && firebaseConfigBase64 !== '__FIREBASE_CONFIG__') {
+                firebaseConfig = decodeBase64(firebaseConfigBase64);
+            }
+            
+            if (!firebaseConfig || firebaseConfigBase64 === '__FIREBASE_CONFIG__' || firebaseConfigBase64 === '__CONFIG_ERROR__') {
+                throw new Error("Configuração não injetada ou inválida. Placeholder não substituído.");
+            }
+            
         } catch (error) {
-            console.error("Erro ao parsear FIREBASE_CONFIG:", error);
+            console.error("Erro ao carregar FIREBASE_CONFIG:", error);
             document.getElementById('content-container').innerHTML = `
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
                     <strong class="font-bold">Erro de Configuração! (CÓDIGO 1)</strong>
-                    <span class="block sm:inline">O aplicativo não conseguiu carregar as configurações do Firebase. Por favor, verifique se o **Comando de Build** no Vercel foi configurado corretamente e se as variáveis de ambiente foram salvas.</span>
+                    <span class="block sm:inline">O aplicativo não conseguiu carregar as configurações do Firebase. Isso indica que a variável de ambiente não foi injetada pelo Vercel. Por favor, verifique o log do comando **npm run build** para erros.</span>
                 </div>
             `;
             // Aborta a execução do script se a configuração for inválida.
             throw new Error("Configuração Firebase inválida. Verifique o Vercel.");
         }
         
-        // Esta função é CRÍTICA. É a correção para o erro 'Can't find variable: setupApp'
-        // Ela só é executada se a configuração do Firebase for válida.
+        // Esta função é chamada apenas se a configuração do Firebase for válida.
         async function setupApp() {
             // #############################################################################################
             // 2. IMPORTS E INICIALIZAÇÃO DO FIREBASE
@@ -115,9 +135,6 @@
             // O ID da Aplicação é o projectId do Firebase, usado no caminho do Firestore.
             appId = firebaseConfig.projectId;
             
-            // Variável global para rastrear o estado da autenticação
-            let isAuthReady = false;
-
             // Define o caminho base para a coleção pública de agendamentos
             const getAppointmentsCollectionPath = (uid) => `artifacts/${appId}/public/data/appointments`;
             
@@ -329,9 +346,10 @@ Por favor, confirme a disponibilidade!`;
                 const secret = document.getElementById('admin-secret').value.trim();
                 const loginError = document.getElementById('login-error');
 
+                // A senha do admin é comparada com a variável injetada
                 if (secret === adminSecret) {
                     loginError.classList.add('hidden');
-                    renderAdmin(true); // Login Simulado (Visto que a autenticação real é complexa)
+                    renderAdmin(true); // Login Simulado (baseado apenas na chave secreta)
                 } else {
                     loginError.classList.remove('hidden');
                 }
@@ -354,7 +372,7 @@ Por favor, confirme a disponibilidade!`;
                         <p class="text-sm">Serviço: <span class="font-semibold">${app.service}</span></p>
                         <p class="text-sm">WhatsApp: ${app.whatsapp}</p>
                         <p class="text-xs mt-2 text-gray-500">Notas: ${app.notes}</p>
-                        <span class="inline-block mt-3 px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">${app.status}</span>
+                        <span class="inline-block mt-3 px-3 py-1 text-xs font-semibold rounded-full ${app.status === 'Confirmado' ? 'bg-green-100 text-green-800' : app.status === 'Cancelado' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">${app.status}</span>
                         <div class="mt-3 flex space-x-2">
                             <button data-id="${app.id}" data-status="Confirmado" class="update-status-btn px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600">Confirmar</button>
                             <button data-id="${app.id}" data-status="Cancelado" class="update-status-btn px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Cancelar</button>
@@ -424,13 +442,11 @@ Por favor, confirme a disponibilidade!`;
                         }
                     }
                     userId = auth.currentUser?.uid;
-                    isAuthReady = true;
                     resolve();
                 });
             });
 
             // 7.2. Configuração de Navegação e Estado
-            const contentContainer = document.getElementById('content-container');
             const btnAgendar = document.getElementById('btn-agendar');
             const btnAdmin = document.getElementById('btn-admin');
             
@@ -443,23 +459,13 @@ Por favor, confirme a disponibilidade!`;
             // Inicia na tela de Agendamento
             renderAgendar();
 
-            // Mensagem de sucesso na inicialização (opcional)
             console.log("Aplicativo Dulce de Leche Studio inicializado com sucesso.");
             console.log("Usuário autenticado (anônimo) com ID:", userId);
-
         }
         
         // Chamada da função de inicialização APENAS se a config do Firebase for válida
-        if (firebaseConfigString !== '__FIREBASE_CONFIG__') {
+        if (firebaseConfigBase64 !== '__FIREBASE_CONFIG__' && firebaseConfig) {
             setupApp();
-        } else {
-             // Esta mensagem é mostrada se o Vercel falhar na injeção.
-             document.getElementById('content-container').innerHTML = `
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                    <strong class="font-bold">Erro de Configuração! (CÓDIGO 1)</strong>
-                    <span class="block sm:inline">O Vercel não injetou as variáveis de ambiente. Verifique se o **Comando de Build** está correto e force o Redeploy.</span>
-                </div>
-            `;
         }
     </script>
 </body>
